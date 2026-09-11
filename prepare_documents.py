@@ -8,7 +8,8 @@ dataset = load_dataset(
 )
 
 documents = []
-
+seen_titles = set()
+duplicate_count = 0
 for example in dataset:
     question_id = example["id"]
     
@@ -18,6 +19,10 @@ for example in dataset:
     for document_number in range(2):
         title = titles[document_number]
         sentences = sentence_groups[document_number]
+        if title in seen_titles:
+            duplicate_count += 1
+            continue
+        seen_titles.add(title)
 
 
         document_text = ""
@@ -35,6 +40,8 @@ for example in dataset:
         documents.append(document)
 
 print("Total documents created:", len(documents))
+print("Duplicate documents skipped:", duplicate_count)
+
 
 print("\nFirst document:")
 print(documents[0])
