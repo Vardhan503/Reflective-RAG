@@ -1,5 +1,6 @@
 from datasets import load_dataset
-
+import json
+import os
 
 dataset = load_dataset(
     "hotpotqa/hotpot_qa",
@@ -45,3 +46,7 @@ print("Duplicate documents skipped:", duplicate_count)
 
 print("\nFirst document:")
 print(documents[0])
+
+os.makedirs("data", exist_ok=True)
+with open("data/documents.jsonl", "w") as file:
+    json.dump(documents, file, indent=2, ensure_ascii=False)
