@@ -28,8 +28,7 @@ def search_web(question, max_results=5):
 
     for result_number in range(len(search_results)):
         search_result = search_results[result_number]
-        
-        print(f'Search result: {search_result}')
+
         document = {
             "id": "web_" + str(result_number + 1),
             "title": search_result.get("title", "Untitled web page"),
@@ -41,22 +40,3 @@ def search_web(question, max_results=5):
         web_documents.append(document)
 
     return web_documents
-
-
-if __name__ == "__main__":
-    question = input("Enter a question: ").strip()
-
-    if question == "":
-        question = "Which magazine was started first, Arthur's Magazine or First for Women?"
-
-    documents = search_web(
-        question=question,
-        max_results=5,
-    )
-
-    print("\nWeb documents found:", len(documents))
-
-    for document in documents:
-        print("\nTitle:", document["title"])
-        print("URL:", document["url"])
-        print("Text:", document["text"][:300])
