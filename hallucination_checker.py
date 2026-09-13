@@ -1,9 +1,7 @@
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-
-load_dotenv()
+from document_utils import build_context
+from models import grader_model
 
 
 class HallucinationResult(BaseModel):
@@ -20,21 +18,7 @@ class HallucinationResult(BaseModel):
     )
 
 
-model = ChatOpenAI(model="gpt-5-mini")
-
-structured_checker = model.with_structured_output(HallucinationResult)
-
-
-def build_context(documents):
-    context = ""
-
-    for document in documents:
-        context = context + "\nSource ID: " + document["id"]
-        context = context + "\nTitle: " + document["title"]
-        context = context + "\nText: " + document["text"]
-        context = context + "\n"
-
-    return context
+structured_checker = grader_model.with_structured_output(HallucinationResult)
 
 
 def check_hallucination(question, answer, documents):
@@ -72,42 +56,3 @@ Documents:
     result = structured_checker.invoke(prompt)
 
     return result
-
-
-if __name__ == "__main__":
-    question = "Which magazine was started first, Arthur's Magazine or First for Women?"
-
-    documents = [
-        {
-            "id": "document_1",
-            "title": "Arthur's Magazine",
-            "text": "Arthur's Magazine was an American literary periodical published from 1844 to 1846.",
-        },
-        {
-            "id": "document_2",
-            "title": "First for Women",
-            "text": "First for Women is a women's magazine that began publishing in 1989.",
-        },
-    ]
-
-    answer = """
-Arthur's Magazine started first in 1844, while First for Women began in 1989.
-Both magazines were founded in Philadelphia.
-"""
-
-    check_result = check_hallucination(
-        question=question,
-        answer=answer,
-        documents=documents,
-    )
-
-    print("Grounded:", check_result.grounded)
-    print("Reason:", check_result.reason)
-
-    print("\nUnsupported claims:")
-
-    if len(check_result.unsupported_claims) == 0:
-        print("None")
-    else:
-        for claim in check_result.unsupported_claims:
-            print("-", claim)
