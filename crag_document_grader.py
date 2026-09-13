@@ -1,11 +1,8 @@
 from typing import Literal
 
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-
-load_dotenv()
+from models import grader_model
 
 
 class DocumentGrade(BaseModel):
@@ -18,9 +15,7 @@ class DocumentGrade(BaseModel):
     )
 
 
-model = ChatOpenAI(model="gpt-5-mini")
-
-structured_grader = model.with_structured_output(DocumentGrade)
+structured_grader = grader_model.with_structured_output(DocumentGrade)
 
 
 def grade_document(question, document_text):
@@ -86,44 +81,3 @@ def choose_crag_route(graded_documents):
         return "rewrite_query"
 
     return "web_search"
-
-
-if __name__ == "__main__":
-    question = input("Enter a question: ").strip()
-
-    if question == "":
-        question = "Which magazine was started first, Arthur's Magazine or First for Women?"
-
-    test_documents = [
-        {
-            "id": "document_1",
-            "title": "Arthur's Magazine",
-            "text": "Arthur's Magazine was an American literary periodical published from 1844 to 1846.",
-        },
-        {
-            "id": "document_2",
-            "title": "First for Women",
-            "text": "First for Women is a women's magazine that began publishing in 1989.",
-        },
-        {
-            "id": "document_3",
-            "title": "Basketball",
-            "text": "Basketball is a team sport played by two teams on a rectangular court.",
-        },
-    ]
-
-    graded_documents = grade_documents(
-        question=question,
-        documents=test_documents,
-    )
-
-    print("\nDocument grades:")
-
-    for document in graded_documents:
-        print("\nTitle:", document["title"])
-        print("Grade:", document["grade"])
-        print("Reason:", document["grade_reason"])
-
-    crag_route = choose_crag_route(graded_documents)
-
-    print("\nSelected CRAG route:", crag_route)
