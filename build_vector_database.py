@@ -3,33 +3,66 @@ import json
 import chromadb
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-with open("data/train_documents.json", "r", encoding="utf-8") as file:
+
+with open("data/corpus.json", "r", encoding="utf-8") as file:
     documents = json.load(file)
-    
+
+
 document_ids = []
 document_texts = []
 document_metadatas = []
 
+
 for document in documents:
     document_ids.append(document["id"])
+
     text_for_embedding = document["title"] + " " + document["text"]
     document_texts.append(text_for_embedding)
-    document_metadatas.append({"title": document["title"], "question_id": document["question_id"]})
+
+    metadata = {
+        "title": document["title"],
+        "source": document["source"],
+    }
+
+    document_metadatas.append(metadata)
+
 
 embedding_function = DefaultEmbeddingFunction()
-client = chromadb.PersistentClient(path="data/chroma_db")
+
+client = chromadb.PersistentClient(
+    path="data/chroma_db",
+)
+
 collection = client.get_or_create_collection(
-    name="hotpotqa_train",
+    name="hotpotqa_corpus",
     embedding_function=embedding_function,
     metadata={"hnsw:space": "cosine"},
 )
 
-collection.upsert(
-    documents=document_texts,
-    ids=document_ids,
-    metadatas=document_metadatas,
-)
 
-print(f"Vector database built with {len(documents)} documents")
-print(f"Collection: {collection.name}")
-print("Documents stored in ChromaDB:", collection.count())
+batch_size = 1000
+batch_start = 0
+
+
+while batch_start < len(documents):
+    batch_end = batch_start + batch_size
+
+    collection.upsert(
+        ids=document_ids[batch_start:batch_end],
+        documents=document_texts[batch_start:batch_end],
+        metadatas=document_metadatas[batch_start:batch_end],
+    )
+
+    print(
+        "Stored documents:",
+        min(batch_end, len(documents)),
+        "of",
+        len(documents),
+    )
+
+    batch_start = batch_end
+
+
+print("Collection:", collection.name)
+print("Documents in ChromaDB:", collection.count())
+print("ChromaDB folder: data/chroma_db")
