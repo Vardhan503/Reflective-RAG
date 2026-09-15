@@ -2,27 +2,27 @@ from typing import TypedDict
 
 
 class GraphState(TypedDict, total=False):
-    question: str
-    retrieval_query: str
+    question: str # User Question
+    retrieval_query: str # current search query
 
-    retrieval_needed: bool
-    router_reason: str
+    retrieval_needed: bool # Self-RAG Retrieval Needed
+    router_reason: str # Self-RAG Router Reason
 
-    documents: list[dict]
-    graded_documents: list[dict]
-    crag_route: str
+    documents: list[dict] # Retrieved Documents
+    graded_documents: list[dict] # Documents + correct/ambiguous/incorrect labels
+    crag_route: str # Selects Generation route
 
-    answer: str
-    source_ids: list[str]
+    answer: str # Generated Answer checking for hallucination and usefulness
+    source_ids: list[str] # Retrieved Document IDs cited by generated answer
 
-    grounded: bool
-    hallucination_reason: str
-    unsupported_claims: list[str]
+    grounded: bool # Hallucination Checker Result
+    hallucination_reason: str # Hallucination Checker Reason
+    unsupported_claims: list[str] # Hallucination Checker Unsupported Claims
 
-    useful: bool
-    critic_reason: str
-    improvement_feedback: str
+    useful: bool # Answer Critic Result
+    critic_reason: str # Answer Critic Reason
+    improvement_feedback: str # Answer Critic Improvement Feedback, fed back to answer generator
 
-    rewrite_count: int
-    generation_count: int
-    max_retries: int
+    rewrite_count: int # Rewrite Count
+    generation_count: int # Generation Count
+    max_retries: int # Max Retries
