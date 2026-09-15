@@ -1,9 +1,6 @@
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-
-load_dotenv()
+from models import grader_model
 
 
 class RetrievalDecision(BaseModel):
@@ -16,9 +13,7 @@ class RetrievalDecision(BaseModel):
     )
 
 
-model = ChatOpenAI(model="gpt-5-mini")
-
-structured_router = model.with_structured_output(RetrievalDecision)
+structured_router = grader_model.with_structured_output(RetrievalDecision)
 
 
 def decide_if_retrieval_is_needed(question):
@@ -51,18 +46,3 @@ User request:
     result = structured_router.invoke(prompt)
 
     return result
-
-
-if __name__ == "__main__":
-    question = input("Enter a question: ").strip()
-
-    if question == "":
-        question = "Which magazine was started first, Arthur's Magazine or First for Women?"
-
-    decision = decide_if_retrieval_is_needed(question)
-
-    print("\nQuestion:")
-    print(question)
-
-    print("\nRetrieval needed:", decision.retrieve)
-    print("Reason:", decision.reason)
