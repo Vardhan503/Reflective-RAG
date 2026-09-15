@@ -1,9 +1,7 @@
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-
-load_dotenv()
+from document_utils import build_context
+from models import grader_model
 
 
 class AnswerCritique(BaseModel):
@@ -20,21 +18,7 @@ class AnswerCritique(BaseModel):
     )
 
 
-model = ChatOpenAI(model="gpt-5-mini")
-
-structured_critic = model.with_structured_output(AnswerCritique)
-
-
-def build_context(documents):
-    context = ""
-
-    for document in documents:
-        context = context + "\nSource ID: " + document["id"]
-        context = context + "\nTitle: " + document["title"]
-        context = context + "\nText: " + document["text"]
-        context = context + "\n"
-
-    return context
+structured_critic = grader_model.with_structured_output(AnswerCritique)
 
 
 def critique_answer(question, answer, documents):
@@ -77,32 +61,3 @@ Available documents:
     result = structured_critic.invoke(prompt)
 
     return result
-
-
-if __name__ == "__main__":
-    question = "Which magazine was started first, Arthur's Magazine or First for Women?"
-
-    documents = [
-        {
-            "id": "document_1",
-            "title": "Arthur's Magazine",
-            "text": "Arthur's Magazine was an American literary periodical published from 1844 to 1846.",
-        },
-        {
-            "id": "document_2",
-            "title": "First for Women",
-            "text": "First for Women is a women's magazine that began publishing in 1989.",
-        },
-    ]
-
-    answer = "Arthur's Magazine was an American literary periodical."
-
-    critique_result = critique_answer(
-        question=question,
-        answer=answer,
-        documents=documents,
-    )
-
-    print("Useful:", critique_result.useful)
-    print("Reason:", critique_result.reason)
-    print("Improvement feedback:", critique_result.improvement_feedback)
