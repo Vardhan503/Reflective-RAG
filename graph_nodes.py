@@ -1,11 +1,10 @@
 from answer_critic import critique_answer
 from answer_generator import generate_answer
-from bm25_retrieval import question
 from crag_document_grader import grade_documents, choose_crag_route
 from hallucination_checker import check_hallucination
 from graph_state import GraphState
-from hybrid_search import hybrid_retrieve
-from models import generator_model, grader_model
+from hybrid_retrieval import hybrid_retrieve
+from models import generator_model
 from query_rewriter import rewrite_query
 from retrieval_router import decide_if_retrieval_is_needed
 from web_search import search_web
@@ -131,7 +130,7 @@ def router_after_hallucination_check(state:GraphState) -> GraphState:
 
 def router_after_answer_critic(state:GraphState) -> GraphState:
     if state["useful"]:
-        return "generate"
+        return "useful"
     generation_count = state.get("generation_count", 0)
     max_retries = state.get("max_retries", 2)
     if generation_count >= max_retries:
