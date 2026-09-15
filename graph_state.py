@@ -26,3 +26,6 @@ class GraphState(TypedDict, total=False):
     rewrite_count: int # Rewrite Count
     generation_count: int # Generation Count
     max_retries: int # Max Retries
+
+    answer_source: str # documents, web, direct, or fallback
+    elapsed_seconds: float # wall-clock time for the full graph run

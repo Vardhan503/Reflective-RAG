@@ -9,147 +9,246 @@ from sentence_transformers import CrossEncoder
 
 
 def tokenize(text):
-    lowercase_text = text.lower()
-    tokens = re.findall(r"\b\w+\b", lowercase_text)
+    text = text.lower()
+    tokens = re.findall(r"\b\w+\b", text)
 
     return tokens
 
 
-def get_result_score(result):
+def get_score(result):
     return result["score"]
 
 
-def reciprocal_rank_fusion(ranked_lists: list[list[str]], k: int = 60) -> list[str]:
-    """
-    ranked_lists: e.g. [[d5, d11, d1], [d11, d5, d7], [d5, d7, d1]]
-                  (each inner list is one retriever's/query's ranked doc ids, best first)
-
-    Returns: single fused ranking, best first.
-    """
-
+def reciprocal_rank_fusion(ranked_lists, k=60):
     scores = defaultdict(float)
 
-    for ranked in ranked_lists:
-        for rank, doc_id in enumerate(ranked, start=1):
-            scores[doc_id] += 1.0 / (k + rank)
+    for ranked_list in ranked_lists:
 
-    return [doc_id for doc_id, _ in sorted(scores.items(), key=lambda x: x[1], reverse=True)]
+        for rank, document_id in enumerate(ranked_list, start=1):
 
+            scores[document_id] += 1.0 / (k + rank)
 
-def rerank_documents(query, candidates, top_k=5):
-    model = CrossEncoder("BAAI/bge-reranker-v2-m3")
-
-    pairs = [(query, candidate["text"]) for candidate in candidates]
-
-    scores = model.predict(pairs)
-
-    scored = sorted(
-        zip(scores, candidates),
-        key=lambda item: item[0],
+    sorted_results = sorted(
+        scores.items(),
+        key=lambda item: item[1],
         reverse=True,
     )
 
-    return [candidate for _, candidate in scored[:top_k]]
+    fused_document_ids = []
+
+    for document_id, score in sorted_results:
+        fused_document_ids.append(document_id)
+
+    return fused_document_ids
 
 
-with open("data/train_documents.json", "r", encoding="utf-8") as file:
+def rerank_documents(query, candidates, model, top_k=5):
+    pairs = []
+
+    for candidate in candidates:
+
+        document_text = candidate["title"] + " " + candidate["text"]
+
+        pair = (query, document_text)
+
+        pairs.append(pair)
+
+    scores = model.predict(pairs)
+
+    scored_documents = []
+
+    for index in range(len(candidates)):
+
+        result = {
+            "score": float(scores[index]),
+            "document": candidates[index],
+        }
+
+        scored_documents.append(result)
+
+    scored_documents.sort(
+        key=get_score,
+        reverse=True,
+    )
+
+    reranked_documents = []
+
+    top_results = scored_documents[:top_k]
+
+    for result in top_results:
+
+        document = result["document"].copy()
+
+        document["reranker_score"] = result["score"]
+
+        reranked_documents.append(document)
+
+    return reranked_documents
+
+
+# ---------------------------------------------------------
+# Load the searchable HotpotQA corpus
+# ---------------------------------------------------------
+
+with open("data/corpus.json", "r", encoding="utf-8") as file:
     documents = json.load(file)
+
 
 documents_by_id = {}
 tokenized_documents = []
 
+
 for document in documents:
+
     document_id = document["id"]
+
     documents_by_id[document_id] = document
 
     searchable_text = document["title"] + " " + document["text"]
-    document_tokens = tokenize(searchable_text)
-    tokenized_documents.append(document_tokens)
+
+    tokens = tokenize(searchable_text)
+
+    tokenized_documents.append(tokens)
+
+
+# ---------------------------------------------------------
+# Create the BM25 sparse retriever
+# ---------------------------------------------------------
 
 bm25 = BM25Okapi(tokenized_documents)
 
+
+# ---------------------------------------------------------
+# Connect to the existing Chroma vector database
+# ---------------------------------------------------------
+
 embedding_function = DefaultEmbeddingFunction()
 
-client = chromadb.PersistentClient(path="data/chroma_db")
+chroma_client = chromadb.PersistentClient(
+    path="data/chroma_db",
+)
 
-collection = client.get_collection(
-    name="hotpotqa_train",
+collection = chroma_client.get_collection(
+    name="hotpotqa_corpus",
     embedding_function=embedding_function,
 )
 
-question = input("Enter a question: ").strip()
 
-if question == "":
-    question = "Which magazine was started first, Arthur's Magazine or First for Women?"
+# ---------------------------------------------------------
+# Load the cross-encoder reranker
+# ---------------------------------------------------------
 
-retrieval_count = 10
-
-dense_results = collection.query(
-    query_texts=[question],
-    n_results=retrieval_count,
+reranker_model = CrossEncoder(
+    "BAAI/bge-reranker-v2-m3"
 )
 
-dense_document_ids = dense_results["ids"][0]
 
-question_tokens = tokenize(question)
-bm25_scores = bm25.get_scores(question_tokens)
+# ---------------------------------------------------------
+# Dense retrieval using ChromaDB
+# ---------------------------------------------------------
 
-bm25_results = []
+def dense_retrieve(question, retrieval_count):
+    number_of_results = retrieval_count
 
-for document_number in range(len(documents)):
-    bm25_result = {
-        "document_id": documents[document_number]["id"],
-        "score": float(bm25_scores[document_number]),
-    }
+    if collection.count() < retrieval_count:
+        number_of_results = collection.count()
 
-    bm25_results.append(bm25_result)
+    results = collection.query(
+        query_texts=[question],
+        n_results=number_of_results,
+    )
 
-bm25_results.sort(key=get_result_score, reverse=True)
-top_bm25_results = bm25_results[:retrieval_count]
+    document_ids = results["ids"][0]
 
-bm25_document_ids = []
+    return document_ids
 
-for result in top_bm25_results:
-    bm25_document_ids.append(result["document_id"])
 
-ranked_lists = [dense_document_ids, bm25_document_ids]
-fused_document_ids = reciprocal_rank_fusion(ranked_lists)
+# ---------------------------------------------------------
+# Sparse retrieval using BM25
+# ---------------------------------------------------------
 
-reranker_candidates = []
-top_fused_document_ids = fused_document_ids[:10]
+def bm25_retrieve(question, retrieval_count):
+    question_tokens = tokenize(question)
 
-for document_id in top_fused_document_ids:
-    document = documents_by_id[document_id]
-    reranker_candidates.append(document)
+    scores = bm25.get_scores(question_tokens)
 
-reranked_documents = rerank_documents(
-    query=question,
-    candidates=reranker_candidates,
-    top_k=5,
-)
+    scored_documents = []
 
-print("\nQuestion:")
-print(question)
+    for index in range(len(documents)):
 
-print("\nTop documents after cross-encoder reranking:")
+        result = {
+            "document_id": documents[index]["id"],
+            "score": float(scores[index]),
+        }
 
-for result_number in range(len(reranked_documents)):
-    document = reranked_documents[result_number]
-    document_id = document["id"]
+        scored_documents.append(result)
 
-    dense_rank = "Not in dense top 10"
-    bm25_rank = "Not in BM25 top 10"
-    rrf_rank = fused_document_ids.index(document_id) + 1
+    scored_documents.sort(
+        key=get_score,
+        reverse=True,
+    )
 
-    if document_id in dense_document_ids:
-        dense_rank = dense_document_ids.index(document_id) + 1
+    top_results = scored_documents[:retrieval_count]
 
-    if document_id in bm25_document_ids:
-        bm25_rank = bm25_document_ids.index(document_id) + 1
+    document_ids = []
 
-    print("\nResult", result_number + 1)
-    print("Title:", document["title"])
-    print("RRF rank:", rrf_rank)
-    print("Dense rank:", dense_rank)
-    print("BM25 rank:", bm25_rank)
-    print("Text:", document["text"][:300])
+    for result in top_results:
+        document_ids.append(result["document_id"])
+
+    return document_ids
+
+
+# ---------------------------------------------------------
+# Complete hybrid retrieval pipeline
+# ---------------------------------------------------------
+
+def hybrid_retrieve(question, retrieval_count=10, top_k=5):
+    question = question.strip()
+
+    if question == "":
+        raise ValueError("Question cannot be empty.")
+
+    dense_document_ids = dense_retrieve(
+        question=question,
+        retrieval_count=retrieval_count,
+    )
+
+    bm25_document_ids = bm25_retrieve(
+        question=question,
+        retrieval_count=retrieval_count,
+    )
+
+    ranked_lists = [
+        dense_document_ids,
+        bm25_document_ids,
+    ]
+
+    fused_document_ids = reciprocal_rank_fusion(
+        ranked_lists=ranked_lists,
+        k=60,
+    )
+
+    top_fused_document_ids = fused_document_ids[:retrieval_count]
+
+    reranker_candidates = []
+
+    for document_id in top_fused_document_ids:
+
+        if document_id in documents_by_id:
+
+            document = documents_by_id[document_id].copy()
+
+            document["source"] = "hybrid_retrieval"
+
+            reranker_candidates.append(document)
+
+    reranked_documents = rerank_documents(
+        query=question,
+        candidates=reranker_candidates,
+        model=reranker_model,
+        top_k=top_k,
+    )
+
+    return reranked_documents
+
+

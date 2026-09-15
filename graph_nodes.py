@@ -27,6 +27,7 @@ def direct_response_node(state: GraphState) -> GraphState:
         "source_ids": [],
         "grounded": True,
         "useful": True,
+        "answer_source": "direct",
     }
 
 def retrieve_documents_node(state: GraphState) -> GraphState:
@@ -66,7 +67,13 @@ def rewrite_query_node(state: GraphState) -> GraphState:
 def web_search_node(state: GraphState) -> GraphState:
     search_query = state.get("retrieval_query", state["question"])
     web_documents = search_web(search_query, max_results=5)
-    return {**state, "documents": web_documents, "graded_documents": [], "crag_route": "generate"}
+    return {
+        **state,
+        "documents": web_documents,
+        "graded_documents": [],
+        "crag_route": "generate",
+        "answer_source": "web",
+    }
 
 def generate_answer_node(state: GraphState):
     question = state["question"]
@@ -103,7 +110,12 @@ def answer_critic_node(state: GraphState) -> GraphState:
     return {**state, "useful": critic_result.useful, "critic_reason": critic_result.reason, "improvement_feedback": critic_result.improvement_feedback}
 
 def fallback_response_node(state:GraphState) -> GraphState:
-    return {**state, "answer": ("I'm sorry, I don't know the answer to that question."), "source_ids": []}
+    return {
+        **state,
+        "answer": ("I'm sorry, I don't know the answer to that question."),
+        "source_ids": [],
+        "answer_source": "fallback",
+    }
 
 def route_after_retrival_decision(state:GraphState) -> GraphState:
     if state["retrieval_needed"]:

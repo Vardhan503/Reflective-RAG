@@ -13,7 +13,7 @@ def get_result_score(result):
     return result["score"]
 
 
-with open("data/train_documents.json", "r", encoding="utf-8") as file:
+with open("data/corpus.json", "r", encoding="utf-8") as file:
     documents = json.load(file)
 
 tokenized_documents = []
