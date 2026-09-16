@@ -7,7 +7,10 @@ from models import grader_model
 
 class DocumentGrade(BaseModel):
     grade: Literal["correct", "ambiguous", "incorrect"] = Field(
-        description="How useful the document is for answering the question."
+        description=(
+            "Whether the document provides useful evidence "
+            "for answering at least one part of the question."
+        )
     )
 
     reason: str = Field(
@@ -15,28 +18,61 @@ class DocumentGrade(BaseModel):
     )
 
 
-structured_grader = grader_model.with_structured_output(DocumentGrade)
+structured_grader = grader_model.with_structured_output(
+    DocumentGrade
+)
 
 
-def grade_document(question, document_text):
+def grade_document(
+    question,
+    document_title,
+    document_text,
+):
     prompt = f"""
 You are a document relevance grader for a Corrective RAG system.
 
-Compare the document with the user's question.
+Determine whether this document provides evidence that helps answer
+the user's question.
 
-Use one of these grades:
+Important:
 
-- correct: The document contains information that directly helps answer the question.
-- ambiguous: The document is related, but it does not provide enough information to answer confidently.
-- incorrect: The document is unrelated or not useful for answering the question.
+- The question may require multiple reasoning steps.
+- One document does not need to contain the complete final answer.
+- A document is correct when it supports at least one necessary
+  reasoning step.
+- Multiple correct documents may need to be combined.
+- Grade only the document's usefulness for the question.
+- Do not answer the question.
 
-The word incorrect means irrelevant for this question. It does not necessarily mean
-that the document contains false information.
+Use these grades:
+
+correct:
+The document explicitly provides a fact, entity, or relationship needed
+for at least one step of answering the question.
+
+ambiguous:
+The document discusses a related entity or topic, but does not provide
+clear evidence for a required reasoning step.
+
+incorrect:
+The document is unrelated and provides no useful evidence.
+
+Multi-hop example:
+
+If the question requires finding who directed a movie and then finding
+where that person lives:
+
+- A document identifying the movie's director is correct.
+- A document stating where that director lives is correct.
+- Neither document needs to contain the complete answer by itself.
 
 Question:
 {question}
 
-Document:
+Document title:
+{document_title}
+
+Document text:
 {document_text}
 """
 
@@ -51,6 +87,7 @@ def grade_documents(question, documents):
     for document in documents:
         grade_result = grade_document(
             question=question,
+            document_title=document["title"],
             document_text=document["text"],
         )
 
