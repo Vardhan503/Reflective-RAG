@@ -2,3 +2,5 @@ data/chroma_db/
 .venv/
 __pycache__/
 .env
+.python-version
+.langgraph_api/

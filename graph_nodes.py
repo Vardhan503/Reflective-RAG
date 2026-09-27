@@ -99,9 +99,25 @@ def grade_documents_node(state: GraphState) -> GraphState:
     question = state["question"]
     documents = state["documents"]
 
-    graded_documents = grade_documents(
+    previously_graded_documents = []
+    new_documents = []
+
+    for document in documents:
+        existing_grade = document.get("grade", "")
+
+        if existing_grade != "":
+            previously_graded_documents.append(document)
+        else:
+            new_documents.append(document)
+
+    newly_graded_documents = grade_documents(
         question=question,
-        documents=documents,
+        documents=new_documents,
+    )
+
+    graded_documents = merge_documents(
+        existing_documents=previously_graded_documents,
+        new_documents=newly_graded_documents,
     )
 
     relevant_documents = []
@@ -135,7 +151,6 @@ def grade_documents_node(state: GraphState) -> GraphState:
         ),
         "crag_route": crag_route,
     }
-
 
 def rewrite_query_node(state: GraphState) -> GraphState:
     question = state["question"]
