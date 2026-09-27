@@ -6,10 +6,14 @@ from models import grader_model
 
 
 class DocumentGrade(BaseModel):
-    grade: Literal["correct", "ambiguous", "incorrect"] = Field(
+    grade: Literal[
+        "correct",
+        "ambiguous",
+        "incorrect",
+    ] = Field(
         description=(
-            "Whether the document provides useful evidence "
-            "for answering at least one part of the question."
+            "Whether the document contributes useful evidence "
+            "for answering the question."
         )
     )
 
@@ -31,24 +35,16 @@ def grade_document(
     prompt = f"""
 You are a document relevance grader for a Corrective RAG system.
 
-Determine whether this document provides evidence that helps answer
+Determine whether this document provides useful evidence for answering
 the user's question.
 
-Important:
-
-- The question may require multiple reasoning steps.
-- One document does not need to contain the complete final answer.
-- A document is correct when it supports at least one necessary
-  reasoning step.
-- Multiple correct documents may need to be combined.
-- Grade only the document's usefulness for the question.
-- Do not answer the question.
+The question may require multiple reasoning steps.
 
 Use these grades:
 
 correct:
-The document explicitly provides a fact, entity, or relationship needed
-for at least one step of answering the question.
+The document explicitly supports at least one fact, entity, or
+relationship needed to answer the question.
 
 ambiguous:
 The document discusses a related entity or topic, but does not provide
@@ -57,14 +53,22 @@ clear evidence for a required reasoning step.
 incorrect:
 The document is unrelated and provides no useful evidence.
 
-Multi-hop example:
+Important rules:
 
-If the question requires finding who directed a movie and then finding
-where that person lives:
+- A correct document does not need to contain the final answer.
+- One document may establish the first reasoning step.
+- Another document may establish the second reasoning step.
+- Do not mark a useful first-hop document as ambiguous only because
+  another document is required.
+- Do not answer the question.
 
-- A document identifying the movie's director is correct.
+Example:
+
+If the question asks where the director of a film lives:
+
+- A document identifying the film's director is correct.
 - A document stating where that director lives is correct.
-- Neither document needs to contain the complete answer by itself.
+- Both documents may be required for the final answer.
 
 Question:
 {question}
@@ -98,23 +102,3 @@ def grade_documents(question, documents):
         graded_documents.append(graded_document)
 
     return graded_documents
-
-
-def choose_crag_route(graded_documents):
-    correct_count = 0
-    ambiguous_count = 0
-
-    for document in graded_documents:
-        if document["grade"] == "correct":
-            correct_count = correct_count + 1
-
-        if document["grade"] == "ambiguous":
-            ambiguous_count = ambiguous_count + 1
-
-    if correct_count > 0:
-        return "generate"
-
-    if ambiguous_count > 0:
-        return "rewrite_query"
-
-    return "web_search"
