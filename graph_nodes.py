@@ -38,8 +38,38 @@ def retrieval_router_node(state: GraphState) -> GraphState:
     decision = decide_if_retrieval_is_needed(question)
 
     return {
+        "retrieval_query": question,
         "retrieval_needed": decision.retrieve,
         "router_reason": decision.reason,
+
+        "documents": [],
+        "accumulated_documents": [],
+        "graded_documents": [],
+
+        "crag_route": "",
+        "context_status": "",
+        "context_reason": "",
+        "missing_information": "",
+
+        "answer": "",
+        "last_generated_answer": "",
+        "source_ids": [],
+        "answer_source": "documents",
+
+        "grounded": False,
+        "hallucination_reason": "",
+        "unsupported_claims": [],
+
+        "useful": False,
+        "needs_more_context": False,
+        "critic_reason": "",
+        "improvement_feedback": "",
+
+        "rewrite_count": 0,
+        "generation_count": 0,
+
+        "web_search_used": False,
+        "failure_reason": "",
     }
 
 

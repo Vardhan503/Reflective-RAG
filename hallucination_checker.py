@@ -54,6 +54,12 @@ Rules:
 - Source IDs alone are not evidence.
 - Do not use outside knowledge.
 - unsupported_claims must only contain statements from the answer.
+- The question describes what must be verified, but the question itself
+  is not evidence.
+- For a multi-hop answer, verify every relationship in the reasoning chain.
+- A document saying Person A is a film director does not prove that
+  Person A directed Film B.
+- The documents must support both the intermediate entity and the final answer.
 
 Insufficient-information rules:
 
