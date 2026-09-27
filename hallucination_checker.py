@@ -6,7 +6,10 @@ from models import grader_model
 
 class HallucinationResult(BaseModel):
     grounded: bool = Field(
-        description="True when every factual claim is supported by the documents."
+        description=(
+            "True when every factual claim in the answer "
+            "is supported by the documents."
+        )
     )
 
     reason: str = Field(
@@ -14,34 +17,59 @@ class HallucinationResult(BaseModel):
     )
 
     unsupported_claims: list[str] = Field(
-        description="Factual claims from the answer that the documents do not support."
+        description=(
+            "Unsupported claims taken only from the generated answer."
+        )
     )
 
 
-structured_checker = grader_model.with_structured_output(HallucinationResult)
+structured_checker = grader_model.with_structured_output(
+    HallucinationResult
+)
 
 
 def check_hallucination(question, answer, documents):
     if len(documents) == 0:
-        raise ValueError("At least one document is required for grounding verification.")
+        raise ValueError(
+            "At least one document is required for grounding verification."
+        )
 
     context = build_context(documents)
 
     prompt = f"""
 You are the hallucination checker in a RAG system.
 
-Determine whether every factual claim in the generated answer is supported
-by the provided documents.
+Determine whether the factual claims in the generated answer are
+supported by the provided documents.
 
 Rules:
 
-- Break the answer into individual factual claims.
-- A claim is supported only when the document text provides evidence for it.
-- A source ID written in the answer is not evidence by itself.
-- If even one factual claim is unsupported, grounded must be false.
-- Copy every unsupported claim into unsupported_claims.
-- Do not use outside knowledge when checking the answer.
-- Ignore non-factual conversational phrases.
+- Evaluate only claims made in the generated answer.
+- The user's question is not a factual claim.
+- Never copy the user's question into unsupported_claims.
+- Interpret short answers as responses to the question.
+- Evidence may be combined across multiple documents.
+- Follow relationships between entities across documents.
+- Equivalent wording does not need to be an exact quotation.
+- Source IDs alone are not evidence.
+- Do not use outside knowledge.
+- unsupported_claims must only contain statements from the answer.
+
+Insufficient-information rules:
+
+- Saying that the provided documents do not contain enough information
+  is not a hallucinated real-world claim.
+- If the documents genuinely lack the requested information, an honest
+  insufficient-information response is grounded.
+- If the answer makes no unsupported factual claims, grounded should
+  be true.
+- The answer critic will separately decide whether the answer is useful.
+
+Multi-document example:
+
+If one document says Person A directed Film B and another document says
+Person A is based in Place C, then "Place C" is supported as the answer
+to where the director of Film B is based.
 
 Question:
 {question}
