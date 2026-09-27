@@ -5,7 +5,9 @@ from models import generator_model
 
 class RewrittenQuery(BaseModel):
     rewritten_query: str = Field(
-        description="A clearer query that can retrieve better documents."
+        description=(
+            "A focused search query for retrieving the missing information."
+        )
     )
 
     reason: str = Field(
@@ -13,40 +15,65 @@ class RewrittenQuery(BaseModel):
     )
 
 
-structured_rewriter = generator_model.with_structured_output(RewrittenQuery)
+structured_rewriter = generator_model.with_structured_output(
+    RewrittenQuery
+)
 
 
-def rewrite_query(question, ambiguous_documents):
+def rewrite_query(
+    question,
+    current_query,
+    documents,
+    missing_information,
+):
     document_clues = ""
 
-    for document in ambiguous_documents:
-        document_clues = document_clues + "\nTitle: " + document["title"]
-        document_clues = document_clues + "\nText: " + document["text"]
-        document_clues = document_clues + "\nGrader reason: " + document["grade_reason"]
+    for document in documents:
+        document_clues = document_clues + "\nTitle: "
+        document_clues = document_clues + document["title"]
+
+        document_clues = document_clues + "\nText: "
+        document_clues = document_clues + document["text"]
+
+        grade_reason = document.get("grade_reason", "")
+
+        if grade_reason != "":
+            document_clues = document_clues + "\nGrader reason: "
+            document_clues = document_clues + grade_reason
+
         document_clues = document_clues + "\n"
 
+    if document_clues == "":
+        document_clues = "No useful document clues are available."
+
     prompt = f"""
-You rewrite questions for a Corrective RAG retrieval system.
+You rewrite search queries for a multi-hop Corrective RAG system.
 
-The first retrieval returned documents that were related to the question,
-but they did not contain enough information to answer confidently.
+The previous retrieval found useful information, but the combined
+documents were not sufficient to answer the complete question.
 
-Rewrite the original question so that the next retrieval has a better chance
-of finding the missing information.
+Write a new search query that focuses on the missing information.
 
-Rules:
+Important rules:
 
-- Preserve the user's original meaning.
-- Make the query clear and standalone.
-- Add useful names and keywords found in the document clues.
+- Use names and entities discovered in the documents.
+- Focus on the next missing reasoning step.
+- Do not repeat the same query unless no better query is possible.
+- Make the new query clear and standalone.
 - Do not answer the question.
-- Do not add facts that are not present in the question or document clues.
+- Do not add unsupported facts.
 - Return one rewritten query.
 
 Original question:
 {question}
 
-Ambiguous document clues:
+Previous retrieval query:
+{current_query}
+
+Missing information:
+{missing_information}
+
+Useful document clues:
 {document_clues}
 """
 
