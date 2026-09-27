@@ -2,30 +2,50 @@ from typing import TypedDict
 
 
 class GraphState(TypedDict, total=False):
-    question: str # User Question
-    retrieval_query: str # current search query
+    # Original user request
+    question: str
 
-    retrieval_needed: bool # Self-RAG Retrieval Needed
-    router_reason: str # Self-RAG Router Reason
+    # Retrieval information
+    retrieval_query: str
+    retrieval_needed: bool
+    router_reason: str
 
-    documents: list[dict] # Retrieved Documents
-    graded_documents: list[dict] # Documents + correct/ambiguous/incorrect labels
-    crag_route: str # Selects Generation route
+    # Retrieved documents
+    documents: list[dict]
+    accumulated_documents: list[dict]
+    graded_documents: list[dict]
 
-    answer: str # Generated Answer checking for hallucination and usefulness
-    source_ids: list[str] # Retrieved Document IDs cited by generated answer
+    # CRAG context decision
+    crag_route: str
+    context_status: str
+    context_reason: str
+    missing_information: str
 
-    grounded: bool # Hallucination Checker Result
-    hallucination_reason: str # Hallucination Checker Reason
-    unsupported_claims: list[str] # Hallucination Checker Unsupported Claims
+    # Generated answer
+    answer: str
+    last_generated_answer: str
+    source_ids: list[str]
+    answer_source: str
 
-    useful: bool # Answer Critic Result
-    critic_reason: str # Answer Critic Reason
-    improvement_feedback: str # Answer Critic Improvement Feedback, fed back to answer generator
+    # Hallucination checking
+    grounded: bool
+    hallucination_reason: str
+    unsupported_claims: list[str]
 
-    rewrite_count: int # Rewrite Count
-    generation_count: int # Generation Count
-    max_retries: int # Max Retries
+    # Answer criticism
+    useful: bool
+    needs_more_context: bool
+    critic_reason: str
+    improvement_feedback: str
 
-    answer_source: str # documents, web, direct, or fallback
-    elapsed_seconds: float # wall-clock time for the full graph run
+    # Retry information
+    rewrite_count: int
+    generation_count: int
+    max_retries: int
+
+    # Web fallback
+    web_search_used: bool
+
+    # Debugging and evaluation
+    failure_reason: str
+    elapsed_seconds: float
